@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getAllStudents, validateStudentByRfid } from '../services/api';
 
-// ADDED: Helper functions from the other component
 const getStatusColor = (status) => {
   switch (status) {
     case 'Validated': return 'bg-green-100 text-green-800';
@@ -23,8 +22,6 @@ const VerificationView = () => {
   const [pendingStudents, setPendingStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  
-  // ADDED: State for managing the details modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
@@ -49,14 +46,13 @@ const VerificationView = () => {
     try {
       await validateStudentByRfid(rfid);
       setMessage(`Successfully validated student ${rfid}.`);
-      loadPendingStudents(); // Refresh the list
+      loadPendingStudents(); 
     } catch (error) {
       console.error('Validation failed:', error);
       setMessage('Validation failed.');
     }
   };
 
-  // ADDED: Functions to handle the modal
   const handleViewDetails = (student) => {
     setSelectedStudent(student);
     setIsModalOpen(true);
@@ -88,7 +84,6 @@ const VerificationView = () => {
                     <div className="font-semibold text-gray-800">{student.name}</div>
                     <div className="text-sm text-gray-600">ID: {student.student_id} | {student.email}</div>
                   </div>
-                  {/* MODIFIED: Wrapped buttons in a div */}
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => handleViewDetails(student)}
@@ -110,7 +105,6 @@ const VerificationView = () => {
         </div>
       </div>
 
-      {/* ADDED: The Details Modal */}
       {isModalOpen && selectedStudent && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white p-8 rounded-2xl w-full max-w-md">
@@ -122,6 +116,8 @@ const VerificationView = () => {
               <div className="flex justify-between"><strong className="text-gray-700">RFID:</strong> {selectedStudent.rfid}</div>
               <div className="flex justify-between"><strong className="text-gray-700">School:</strong> {selectedStudent.school}</div>
               <div className="flex justify-between"><strong className="text-gray-700">Program:</strong> {selectedStudent.program}</div>
+              <div className="flex justify-between"><strong className="text-gray-700">Address:</strong> {selectedStudent.address}</div>
+              <div className="flex justify-between"><strong className="text-gray-700">Contact No:</strong> {selectedStudent.contact_number}</div>
               <div className="flex justify-between"><strong className="text-gray-700">Initial Balance:</strong> ₱{selectedStudent.balance}</div>
               <div className="flex justify-between items-center"><strong className="text-gray-700">Status:</strong> 
                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedStudent.effective_status)}`}>

@@ -1,5 +1,3 @@
-// config/db.js
-
 import postgres from 'postgres';
 import dotenv from 'dotenv';
 
@@ -18,13 +16,15 @@ export async function initDB() {
         name TEXT,
         email TEXT UNIQUE,
         program TEXT,
-        school TEXT,
+        school TEXT, 
+        address TEXT,                      
+        contact_number VARCHAR(20), 
         balance NUMERIC,
         type TEXT,
-        status VARCHAR(20) DEFAULT 'pending', -- 👈 ADDED: For pending, validated status
-        validated_at TIMESTAMPTZ,              -- 👈 ADDED: To track when validation happens
-        annual_renewal_date DATE,             -- 👈 ADDED: For 1-year expiry
-        card_expiry_date DATE,                -- 👈 ADDED: For 5-year expiry
+        status VARCHAR(20) DEFAULT 'pending',
+        validated_at TIMESTAMPTZ,              
+        annual_renewal_date DATE,             
+        card_expiry_date DATE,
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )

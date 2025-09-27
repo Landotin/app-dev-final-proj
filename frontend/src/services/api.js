@@ -22,3 +22,7 @@ export const registerStudent = (studentData) => {
 export const validateStudentByRfid = (rfid) => {
   return apiClient.patch(`/students/${rfid}/validate`);
 };
+
+export const updateStudentByRfid = (rfid, studentData) => {
+  return apiClient.put(`/students/${rfid}`, studentData);
+};
