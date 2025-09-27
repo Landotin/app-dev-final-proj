@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getAllStudents, getStudentByRfid } from '../services/api';
+import { findStudentByIdentifier } from '../services/api';
+import { getAllStudents } from '../services/api';
 
 const DashboardView = () => {
   const [totalStudents, setTotalStudents] = useState(0);
@@ -25,7 +26,7 @@ const DashboardView = () => {
     }
     setSearchResults({ loading: true });
     try {
-      const response = await getStudentByRfid(searchValue);
+      const response = await findStudentByIdentifier(searchValue);
       setSearchResults({ data: response.data });
     } catch (error) {
       if (error.response?.status === 404) {
@@ -88,15 +89,35 @@ const DashboardView = () => {
                 <div className="bg-white p-5 rounded-xl">
                   <h3 className="text-xl font-bold text-gray-800 mb-4">{searchResults.data.name}</h3>
                   <p className="font-semibold text-gray-700 mb-3">Recent Tap History:</p>
-                  <div className="max-h-64 overflow-y-auto">
+                  <div className="max-h-72 overflow-y-auto">
                     {searchResults.data.taps && searchResults.data.taps.length > 0 ? (
                       searchResults.data.taps.map((tap, index) => (
-                        <div key={index} className="flex justify-between items-center p-3 border-b border-gray-200 last:border-b-0">
-                          <span className={`font-bold ${tap.tap_type === 'entry' ? 'text-green-600' : 'text-red-600'}`}>
-                            {tap.tap_type.toUpperCase()}
-                          </span>
-                          <span className="text-gray-600 text-sm">{formatDate(tap.tap_time)}</span>
-                          <span className="text-gray-800">₱{tap.user_balance}</span>
+                        <div key={index} className="p-4 border-b border-gray-200 last:border-b-0">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className={`font-bold text-lg ${tap.tap_type === 'journey' ? 'text-blue-600' : 'text-gray-500'}`}>
+                              JOURNEY
+                            </span>
+                            <span className="text-gray-500 text-xs">{formatDate(tap.tap_time)}</span>
+                          </div>
+                          {/* 👇 This is the new, detailed display for each journey */}
+                          {tap.tap_type === 'journey' && (
+                            <div className="text-sm space-y-2 pl-2">
+                              <p className="font-semibold text-gray-800">{tap.origin_station} → {tap.destination_station}</p>
+                              <div className="flex justify-between items-center text-gray-600">
+                                <span>Previous Balance:</span>
+                                <span className="font-mono">₱{(parseFloat(tap.user_balance) + parseFloat(tap.fare_amount)).toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-red-500">
+                                <span>Amount Paid:</span>
+                                <span className="font-mono">- ₱{parseFloat(tap.fare_amount).toFixed(2)} {tap.discount_applied && <span className="text-green-600 text-xs">(50% OFF)</span>}</span>
+                              </div>
+                              <hr className="my-1"/>
+                              <div className="flex justify-between items-center font-bold text-gray-800">
+                                <span>New Balance:</span>
+                                <span className="font-mono">₱{parseFloat(tap.user_balance).toFixed(2)}</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))
                     ) : (

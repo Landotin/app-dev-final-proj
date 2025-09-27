@@ -1,28 +1,14 @@
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:4000/api';
-
-const apiClient = axios.create({
-  baseURL: API_BASE,
+const api = axios.create({
+  baseURL: 'http://localhost:4000/api',
 });
 
-export const getAllStudents = () => {
-  return apiClient.get('/students');
-};
+// Student-related API calls
+export const getAllStudents = () => api.get('/students');
+export const findStudentByIdentifier = (identifier) => api.get(`/students/${identifier}`);
+export const registerStudent = (studentData) => api.post('/students', studentData);
+export const validateStudentByRfid = (rfid) => api.patch(`/students/${rfid}/validate`);
+export const updateStudentByRfid = (rfid, studentData) => api.put(`/students/${rfid}`, studentData);
 
-export const getStudentByRfid = (rfid) => {
-  return apiClient.get(`/students/${rfid}`);
-};
-
-export const registerStudent = (studentData) => {
-  return apiClient.post('/students', studentData);
-};
-
-// 👇 ADDED: New function for validation
-export const validateStudentByRfid = (rfid) => {
-  return apiClient.patch(`/students/${rfid}/validate`);
-};
-
-export const updateStudentByRfid = (rfid, studentData) => {
-  return apiClient.put(`/students/${rfid}`, studentData);
-};
+export const deductFareForStudent = (data) => api.post('/students/fare/deduct', data);
