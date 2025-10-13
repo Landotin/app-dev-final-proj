@@ -142,8 +142,10 @@
     </div>
 
     <script>
-        const API_BASE_URL = 'http://localhost:5000/api'; // Replace with your actual API URL
-        
+        const isAndroid = navigator.userAgent.includes('Android');
+            const API_BASE_URL = isAndroid
+            ? 'http://10.0.2.2:5000/api'  // Host machine for Android emulator
+            : 'http://localhost:5000/api'; // Normal browser
         // As per your fareMatrix.js, this is the canonical list of stations.
         const stationList = [
             "Dr. Santos", "Ninoy Aquino Avenue", "Asia World", "PITX", "Redemptorist",
