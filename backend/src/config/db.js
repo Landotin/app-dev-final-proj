@@ -45,7 +45,8 @@ export async function initDB() {
         origin_station TEXT,
         destination_station TEXT,
         fare_amount NUMERIC,
-        discount_applied BOOLEAN
+        discount_applied BOOLEAN,
+        notes TEXT 
       )
     `;
     console.log('✅ Taps table is ready');

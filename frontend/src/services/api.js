@@ -10,5 +10,5 @@ export const findStudentByIdentifier = (identifier) => api.get(`/students/${iden
 export const registerStudent = (studentData) => api.post('/students', studentData);
 export const validateStudentByRfid = (rfid) => api.patch(`/students/${rfid}/validate`);
 export const updateStudentByRfid = (rfid, studentData) => api.put(`/students/${rfid}`, studentData);
-
+export const resolveIncompleteJourney = (rfid, notes) => api.post('/taps/resolve-mismatch', { rfid, notes });
 export const deductFareForStudent = (data) => api.post('/students/fare/deduct', data);
