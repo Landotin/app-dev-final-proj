@@ -154,6 +154,25 @@
             "Tayuman", "Blumentritt", "Abad Santos", "R. Papa", "5th Avenue", "Monumento",
             "Balintawak", "Fernando Poe Jr."
         ];
+        
+         function handleRfidScan(rfid) {
+            const gateModeToggle = document.getElementById('gateModeToggle');
+            const entryRfidInput = document.getElementById('entryRfid');
+            const exitRfidInput = document.getElementById('exitRfid');
+            const tapEntryBtn = document.getElementById('tapEntryBtn');
+            const tapExitBtn = document.getElementById('tapExitBtn');
+            
+            // Check which UI is currently active (Entry or Exit)
+            if (gateModeToggle.checked) { // Exit mode is active
+                exitRfidInput.value = rfid; // Put the scanned RFID in the exit input field
+                // Optional: automatically trigger the tap for a seamless experience
+                tapExitBtn.click();
+            } else { // Entry mode is active
+                entryRfidInput.value = rfid; // Put the scanned RFID in the entry input field
+                // Optional: automatically trigger the tap
+                tapEntryBtn.click();
+            }
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             const gateModeToggle = document.getElementById('gateModeToggle');
