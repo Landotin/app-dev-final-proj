@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { findStudentByIdentifier } from '../services/api';
-import { getAllStudents } from '../services/api';
+import { findStudentByIdentifier, getAllStudents, resolveIncompleteJourney } from '../services/api';
 
 const DashboardView = () => {
   const [totalStudents, setTotalStudents] = useState(0);
   const [searchValue, setSearchValue] = useState('');
   const [searchResults, setSearchResults] = useState(null);
+  
+  // State for filters
+  const [filter, setFilter] = useState('all');
+  const [selectedDate, setSelectedDate] = useState('');
+
+  // State for the resolution modal
+  const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
+  const [resolutionNotes, setResolutionNotes] = useState('');
+  const [resolutionMessage, setResolutionMessage] = useState('');
 
   useEffect(() => {
     const loadStudentCount = async () => {
@@ -25,6 +33,8 @@ const DashboardView = () => {
       return;
     }
     setSearchResults({ loading: true });
+    setFilter('all');
+    setSelectedDate('');
     try {
       const response = await findStudentByIdentifier(searchValue);
       setSearchResults({ data: response.data });
@@ -43,20 +53,64 @@ const DashboardView = () => {
     }
   };
 
-  const formatDate = (dateString) => new Date(dateString).toLocaleString();
+  const formatDate = (dateString) => new Date(dateString).toLocaleDateString();
+  const formatTime = (dateString) => new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+  const TapTypeBadge = ({ type }) => {
+    const colors = {
+      entry: 'bg-green-100 text-green-800',
+      exit: 'bg-red-100 text-red-800',
+      journey: 'bg-blue-100 text-blue-800',
+      admin_correction: 'bg-orange-100 text-orange-800',
+    };
+    return (
+      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${colors[type]}`}>
+        {type.replace('_', ' ').toUpperCase()}
+      </span>
+    );
+  };
+
+  const filteredTaps = searchResults?.data?.taps.filter(tap => {
+    const typeMatch = filter === 'all' || tap.tap_type === filter;
+    const tapDate = new Date(tap.tap_time).toISOString().split('T')[0];
+    const dateMatch = !selectedDate || tapDate === selectedDate;
+    return typeMatch && dateMatch;
+  });
+
+  const lastTap = searchResults?.data?.taps?.[0];
+  const showResolveButton = lastTap?.tap_type === 'entry';
+
+  const handleResolveClick = () => {
+    setIsResolveModalOpen(true);
+    setResolutionMessage('');
+    setResolutionNotes('');
+  };
+
+  const handleConfirmResolution = async () => {
+    try {
+      await resolveIncompleteJourney(searchResults.data.rfid, resolutionNotes);
+      setResolutionMessage({ type: 'success', text: 'Mismatch resolved successfully!' });
+      setTimeout(() => {
+        setIsResolveModalOpen(false);
+        searchStudent(); 
+      }, 1500);
+    } catch (error) {
+      setResolutionMessage({ type: 'error', text: error.response?.data?.error || 'Failed to resolve.' });
+    }
+  };
+  
   return (
     <div>
-      <div className="bg-green-300 p-5 rounded-2xl mb-8 max-w-xs flex items-center gap-4">
+      <div className="bg-green-300 p-5 rounded-2xl mb-8 max-w-xs flex items-center gap-4 shadow-lg">
         <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-2xl">👥</div>
         <div>
           <h3 className="font-bold text-gray-800">Total Students</h3>
-          <p className="text-gray-700 text-lg">{totalStudents}</p>
+          <p className="text-gray-700 text-lg font-semibold">{totalStudents}</p>
         </div>
       </div>
 
       <div className="flex justify-center">
-        <div className="bg-green-300 p-8 rounded-3xl w-full max-w-2xl">
+        <div className="bg-green-300 p-8 rounded-3xl w-full max-w-4xl shadow-xl">
           <h2 className="text-2xl font-bold text-gray-800 mb-3">Tap History Checker</h2>
           <p className="text-gray-600 mb-5">Search for a student to view their recent tap history</p>
           
@@ -77,59 +131,105 @@ const DashboardView = () => {
             </button>
           </div>
 
-          {searchResults && (
-            <div>
-              {searchResults.loading && <p className="text-gray-700">Searching...</p>}
-              {searchResults.error && (
-                <div className="bg-red-100 border border-red-300 text-red-700 p-4 rounded-lg">
-                  ❌ {searchResults.error}
+          {searchResults?.data && (
+            <div className="bg-white p-5 rounded-xl">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
+                <h3 className="text-xl font-bold text-gray-800">{searchResults.data.name}</h3>
+                {showResolveButton && (
+                  <button 
+                    onClick={handleResolveClick}
+                    className="px-4 py-2 bg-orange-500 text-white rounded-full font-bold hover:bg-orange-600 transition-colors animate-pulse text-sm"
+                  >
+                    Resolve Incomplete Journey
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap mb-4">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-gray-200 p-1 rounded-full text-sm border-none focus:ring-2 focus:ring-blue-500"
+                />
+                {selectedDate && <button onClick={() => setSelectedDate('')} className="text-xs text-blue-600 hover:underline">Clear</button>}
+                <div className="flex space-x-1 bg-gray-200 p-1 rounded-full">
+                  <button onClick={() => setFilter('all')} className={`px-3 py-1 text-sm rounded-full ${filter === 'all' ? 'bg-white text-gray-800 shadow' : 'bg-transparent text-gray-600'}`}>All</button>
+                  <button onClick={() => setFilter('entry')} className={`px-3 py-1 text-sm rounded-full ${filter === 'entry' ? 'bg-white text-gray-800 shadow' : 'bg-transparent text-gray-600'}`}>Entry</button>
+                  <button onClick={() => setFilter('exit')} className={`px-3 py-1 text-sm rounded-full ${filter === 'exit' ? 'bg-white text-gray-800 shadow' : 'bg-transparent text-gray-600'}`}>Exit</button>
                 </div>
-              )}
-              {searchResults.data && (
-                <div className="bg-white p-5 rounded-xl">
-                  <h3 className="text-xl font-bold text-gray-800 mb-4">{searchResults.data.name}</h3>
-                  <p className="font-semibold text-gray-700 mb-3">Recent Tap History:</p>
-                  <div className="max-h-72 overflow-y-auto">
-                    {searchResults.data.taps && searchResults.data.taps.length > 0 ? (
-                      searchResults.data.taps.map((tap, index) => (
-                        <div key={index} className="p-4 border-b border-gray-200 last:border-b-0">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className={`font-bold text-lg ${tap.tap_type === 'journey' ? 'text-blue-600' : 'text-gray-500'}`}>
-                              JOURNEY
-                            </span>
-                            <span className="text-gray-500 text-xs">{formatDate(tap.tap_time)}</span>
-                          </div>
-                          {/* 👇 This is the new, detailed display for each journey */}
-                          {tap.tap_type === 'journey' && (
-                            <div className="text-sm space-y-2 pl-2">
-                              <p className="font-semibold text-gray-800">{tap.origin_station} → {tap.destination_station}</p>
-                              <div className="flex justify-between items-center text-gray-600">
-                                <span>Previous Balance:</span>
-                                <span className="font-mono">₱{(parseFloat(tap.user_balance) + parseFloat(tap.fare_amount)).toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between items-center text-red-500">
-                                <span>Amount Paid:</span>
-                                <span className="font-mono">- ₱{parseFloat(tap.fare_amount).toFixed(2)} {tap.discount_applied && <span className="text-green-600 text-xs">(50% OFF)</span>}</span>
-                              </div>
-                              <hr className="my-1"/>
-                              <div className="flex justify-between items-center font-bold text-gray-800">
-                                <span>New Balance:</span>
-                                <span className="font-mono">₱{parseFloat(tap.user_balance).toFixed(2)}</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500">No tap history found.</p>
-                    )}
-                  </div>
-                </div>
-              )}
+              </div>
+
+              <div className="max-h-[60vh] overflow-y-auto">
+                {filteredTaps && filteredTaps.length > 0 ? (
+                  <table className="w-full text-sm text-left text-gray-500">
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+                      <tr>
+                        <th scope="col" className="px-6 py-3">Date</th>
+                        <th scope="col" className="px-6 py-3">Time</th>
+                        <th scope="col" className="px-6 py-3">Type</th>
+                        <th scope="col" className="px-6 py-3">Details</th>
+                        <th scope="col" className="px-6 py-3 text-right">Fare</th>
+                        <th scope="col" className="px-6 py-3 text-right">New Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTaps.map((tap, index) => (
+                        <tr key={index} className="bg-white border-b hover:bg-gray-50">
+                          <td className="px-6 py-4">{formatDate(tap.tap_time)}</td>
+                          <td className="px-6 py-4">{formatTime(tap.tap_time)}</td>
+                          <td className="px-6 py-4"><TapTypeBadge type={tap.tap_type} /></td>
+                          <td className="px-6 py-4 font-medium text-gray-900">
+                            {tap.tap_type === 'entry' && `Entered at ${tap.origin_station}`}
+                            {(tap.tap_type === 'exit' || tap.tap_type === 'journey') && `${tap.origin_station} → ${tap.destination_station}`}
+                            {tap.tap_type === 'admin_correction' && `Manually Resolved (from ${tap.origin_station})`}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            {tap.fare_amount ? `₱${parseFloat(tap.fare_amount).toFixed(2)}` : '—'}
+                            {tap.discount_applied && <div className="text-xs text-green-600">50% OFF</div>}
+                          </td>
+                          <td className="px-6 py-4 font-semibold text-right text-gray-800">
+                            {tap.user_balance ? `₱${parseFloat(tap.user_balance).toFixed(2)}` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-gray-500 p-4 text-center">No tap history found for the selected filters.</p>
+                )}
+              </div>
             </div>
           )}
         </div>
       </div>
+
+      {isResolveModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
+          <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-xl">
+            <h2 className="text-2xl font-bold mb-2">Confirm Mismatch Resolution</h2>
+            <p className="text-gray-600 mb-4">
+              This will close the journey from <strong className="text-gray-800">{lastTap.origin_station}</strong> and apply a <strong>₱30.00</strong> penalty fare.
+            </p>
+            <textarea
+                value={resolutionNotes}
+                onChange={(e) => setResolutionNotes(e.target.value)}
+                placeholder="Add optional notes..."
+                className="w-full p-2 border rounded-md mb-4"
+            ></textarea>
+
+            {resolutionMessage && (
+              <div className={`p-3 mb-4 rounded-lg text-sm ${resolutionMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                {resolutionMessage.text}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-4 mt-4">
+              <button onClick={() => setIsResolveModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Cancel</button>
+              <button onClick={handleConfirmResolution} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">Confirm & Resolve</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

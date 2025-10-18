@@ -4,6 +4,7 @@ import cors from 'cors';
 
 import { initDB } from './config/db.js';
 import studentsRouter from './routes/studentsRoute.js';
+import tapsRouter from './routes/tapsRoute.js'; // 👈 IMPORT THE NEW ROUTER
 
 dotenv.config();
 
@@ -14,7 +15,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api/students', studentsRouter);
-
+app.use('/api/taps', tapsRouter);
 
 initDB().then(() => {
     app.listen(PORT, () => {

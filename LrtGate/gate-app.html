@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LRT-1 Gate Control</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .gate-container {
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 240px;
+            height: 44px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #e5e7eb;
+            transition: .4s;
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            padding: 4px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 36px;
+            width: 116px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 9999px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        input:checked + .slider:before {
+            transform: translateX(116px);
+        }
+        .slider-text {
+            position: relative;
+            z-index: 1;
+            width: 50%;
+            text-align: center;
+            font-weight: 500;
+            color: #4b5563;
+            transition: color .4s;
+        }
+        input:checked ~ .slider-text-group .slider-text.entry {
+            color: #4b5563;
+        }
+        input:checked ~ .slider-text-group .slider-text.exit {
+            color: #10b981;
+        }
+        .slider-text.entry {
+            color: #3b82f6;
+        }
+        .status-message {
+            min-height: 120px;
+            transition: background-color 0.3s;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-md mx-auto p-4">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">Gate Control System</h1>
+        <p class="text-center text-gray-500 mb-6">LRT-1 Automated Fare Collection</p>
+
+        <div class="bg-white p-6 rounded-2xl shadow-lg">
+            <div class="flex justify-center mb-6">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="gateModeToggle">
+                    <span class="slider"></span>
+                    <div class="slider-text-group absolute inset-0 flex items-center">
+                        <span class="slider-text entry">Entry Gate</span>
+                        <span class="slider-text exit">Exit Gate</span>
+                    </div>
+                </label>
+            </div>
+
+            <div id="entryGate" class="gate-container">
+                <div class="space-y-4">
+                    <div>
+                        <label for="entryStation" class="block text-sm font-medium text-gray-700 mb-1">Station Location</label>
+                        <select id="entryStation" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                            </select>
+                    </div>
+                    <div>
+                        <label for="entryRfid" class="block text-sm font-medium text-gray-700 mb-1">RFID Number</label>
+                        <input type="text" id="entryRfid" placeholder="Tap NFC Card..." class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" autocomplete="off">
+                    </div>
+                    <button id="tapEntryBtn" class="w-full bg-blue-500 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150">
+                        Tap to Enter
+                    </button>
+                </div>
+            </div>
+
+            <div id="exitGate" class="gate-container" style="display: none;">
+                <div class="space-y-4">
+                    <div>
+                        <label for="exitStation" class="block text-sm font-medium text-gray-700 mb-1">Station Location</label>
+                        <select id="exitStation" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500">
+                            </select>
+                    </div>
+                    <div>
+                        <label for="exitRfid" class="block text-sm font-medium text-gray-700 mb-1">RFID Number</label>
+                        <input type="text" id="exitRfid" placeholder="Tap NFC Card..." class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500" autocomplete="off">
+                    </div>
+                    <button id="tapExitBtn" class="w-full bg-emerald-500 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition duration-150">
+                        Tap to Exit
+                    </button>
+                </div>
+            </div>
+            
+             <div id="statusMessage" class="status-message mt-6 p-4 rounded-lg bg-gray-100 flex items-center justify-center text-center">
+                <span class="text-gray-500">Please tap a card to begin.</span>
+            </div>
+
+        </div>
+        <p class="text-center text-xs text-gray-400 mt-4">Current Location: City of Manila, PH</p>
+    </div>
+
+    <script>
+        const isAndroid = navigator.userAgent.includes('Android');
+        
+        // FIX 2: Changed IP from 10.0.2.2 to your computer's IP 192.168.100.10
+        const API_BASE_URL = isAndroid
+        ? 'http://192.168.100.10:5000/api'  // IP for physical device
+        : 'http://localhost:5000/api'; // Normal browser
+
+        // As per your fareMatrix.js, this is the canonical list of stations.
+        const stationList = [
+            "Dr. Santos", "Ninoy Aquino Avenue", "Asia World", "PITX", "Redemptorist",
+            "Baclaran", "EDSA", "Libertad", "Gil Puyat", "Vito Cruz", "Quirino",
+            "Pedro Gil", "UN Avenue", "Central", "Carriedo", "D. Jose", "Bambang",
+            "Tayuman", "Blumentritt", "Abad Santos", "R. Papa", "5th Avenue", "Monumento",
+            "Balintawak", "Fernando Poe Jr."
+        ];
+        
+         function handleRfidScan(rfid) {
+            const gateModeToggle = document.getElementById('gateModeToggle');
+            const entryRfidInput = document.getElementById('entryRfid');
+            const exitRfidInput = document.getElementById('exitRfid');
+            const tapEntryBtn = document.getElementById('tapEntryBtn');
+            const tapExitBtn = document.getElementById('tapExitBtn');
+            
+            // Check which UI is currently active (Entry or Exit)
+            if (gateModeToggle.checked) { // Exit mode is active
+                exitRfidInput.value = rfid; // Put the scanned RFID in the exit input field
+                // Optional: automatically trigger the tap for a seamless experience
+                tapExitBtn.click();
+            } else { // Entry mode is active
+                entryRfidInput.value = rfid; // Put the scanned RFID in the entry input field
+                // Optional: automatically trigger the tap
+                tapEntryBtn.click();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const gateModeToggle = document.getElementById('gateModeToggle');
+            const entryGate = document.getElementById('entryGate');
+            const exitGate = document.getElementById('exitGate');
+            const tapEntryBtn = document.getElementById('tapEntryBtn');
+            const tapExitBtn = document.getElementById('tapExitBtn');
+            const entryStationSelect = document.getElementById('entryStation');
+            const exitStationSelect = document.getElementById('exitStation');
+            const entryRfidInput = document.getElementById('entryRfid');
+            const exitRfidInput = document.getElementById('exitRfid');
+            const statusMessage = document.getElementById('statusMessage');
+
+            // Populate station dropdowns
+            stationList.forEach(station => {
+                const option1 = new Option(station, station);
+                const option2 = new Option(station, station);
+                entryStationSelect.add(option1);
+                exitStationSelect.add(option2);
+            });
+            // Set a default station
+            entryStationSelect.value = "Central";
+            exitStationSelect.value = "Libertad";
+
+            // Toggle UI between Entry and Exit
+            gateModeToggle.addEventListener('change', () => {
+                if (gateModeToggle.checked) { // Exit mode
+                    entryGate.style.display = 'none';
+                    exitGate.style.display = 'block';
+                } else { // Entry mode
+                    exitGate.style.display = 'none';
+                    entryGate.style.display = 'block';
+                }
+                 // Reset status on toggle
+                updateStatus('Please tap a card to begin.', 'neutral');
+            });
+            
+            // Handle Tap Entry
+            tapEntryBtn.addEventListener('click', async () => {
+                const rfid = entryRfidInput.value.trim();
+                const station = entryStationSelect.value;
+                if (!rfid) {
+                    updateStatus('RFID number is required.', 'error');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/taps/entry`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ rfid, station }),
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.error || 'An unknown error occurred.');
+                    }
+                    
+                    const successHtml = `
+                        <div class="text-green-800">
+                            <h3 class="font-bold text-lg">Entry Success!</h3>
+                            <p>Welcome, ${data.studentName}.</p>
+                            <p>Entered at ${station}.</p>
+                        </div>
+                    `;
+                    updateStatus(successHtml, 'success');
+
+                } catch (error) {
+                    const errorHtml = `
+                        <div class="text-red-800">
+                             <h3 class="font-bold text-lg">Entry Failed</h3>
+                             <p>${error.message}</p>
+                        </div>
+                    `;
+                    updateStatus(errorHtml, 'error');
+                } finally {
+                     entryRfidInput.value = ''; // Clear input
+                }
+            });
+
+            // Handle Tap Exit
+            tapExitBtn.addEventListener('click', async () => {
+                const rfid = exitRfidInput.value.trim();
+                const station = exitStationSelect.value;
+
+                if (!rfid) {
+                    updateStatus('RFID number is required.', 'error');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/taps/exit`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ rfid, station }),
+                    });
+                    
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.error || 'An unknown error occurred.');
+                    }
+                    
+                    const fareDetails = `
+                        <div class="text-blue-800 text-left w-full">
+                            <h3 class="font-bold text-lg text-center mb-2">Exit Success!</h3>
+                            <p class="flex justify-between"><span>Journey:</span> <strong>${data.origin} to ${data.destination}</strong></p>
+                            <p class="flex justify-between"><span>Fare:</span> <strong>₱${data.finalFare.toFixed(2)}</strong></p>
+                            ${data.discountApplied ? `<p class="flex justify-between text-sm text-green-600"><span>Discount:</span> <strong>Student Discount Applied</strong></p>` : ''}
+                            <hr class="my-1 border-t border-blue-200">
+                            <p class="flex justify-between"><span>New Balance:</span> <strong class="text-xl">₱${data.newBalance.toFixed(2)}</strong></p>
+                        </div>
+                    `;
+                    updateStatus(fareDetails, 'info');
+
+                } catch (error) {
+                    const errorHtml = `
+                        <div class="text-red-800">
+                             <h3 class="font-bold text-lg">Exit Failed</h3>
+                             <p>${error.message}</p>
+                        </div>
+                    `;
+                    updateStatus(errorHtml, 'error');
+                } finally {
+                    exitRfidInput.value = ''; // Clear input
+                }
+            });
+            
+            function updateStatus(content, type) {
+                statusMessage.innerHTML = ''; // Clear previous content
+                
+                if (typeof content === 'string') {
+                    const span = document.createElement('span');
+                    span.innerHTML = content;
+                    statusMessage.appendChild(span);
+                } else {
+                    statusMessage.innerHTML = content;
+                }
+                
+                // Reset classes
+                statusMessage.classList.remove('bg-green-100', 'bg-red-100', 'bg-blue-100', 'bg-gray-100');
+                statusMessage.querySelector('span')?.classList.remove('text-green-800', 'text-red-800', 'text-blue-800', 'text-gray-500');
+
+                switch (type) {
+                    case 'success':
+                        statusMessage.classList.add('bg-green-100');
+                        break;
+                    case 'error':
+                        statusMessage.classList.add('bg-red-100');
+                        break;
+                    case 'info':
+                        statusMessage.classList.add('bg-blue-100');
+                        break;
+                    case 'neutral':
+                    default:
+                        statusMessage.classList.add('bg-gray-100');
+                        statusMessage.querySelector('span')?.classList.add('text-gray-500');
+                        break;
+                }
+            }
+
+        });
+    </script>
+</body>
+</html>
