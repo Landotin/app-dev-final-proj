@@ -1,5 +1,4 @@
 import sql from '../config/db.js';
-import { fareMatrix } from '../config/fareMatrix.js';
 
 // Helper for calculating effective status
 const selectWithEffectiveStatus = sql`
@@ -47,9 +46,8 @@ export async function findStudent(req, res) {
 
     const studentProfile = studentResult[0];
     
-    // 👇 MODIFIED: Select new journey-related fields
     const tapsHistory = await sql`
-      SELECT tap_type, tap_time, user_balance, origin_station, destination_station, fare_amount, discount_applied 
+      SELECT *
       FROM taps 
       WHERE rfid = ${studentProfile.rfid}
       ORDER BY tap_time DESC
@@ -74,11 +72,11 @@ export async function registerStudent(req, res) {
     const [newStudent] = await sql`
       INSERT INTO users (
         rfid, name, balance, type, student_id, email, program, school,
-        address, contact_number, card_expiry_date
+        address, contact_number, card_expiry_date, proof_of_enrollment_url, selfie_url
       )
       VALUES (
         ${rfid}, ${name}, ${balance}, ${type}, ${student_id}, ${email}, ${program}, ${school},
-        ${address}, ${contact_number}, NOW() + INTERVAL '5 years'
+        ${address}, ${contact_number}, NOW() + INTERVAL '5 years', ${req.body.proof_of_enrollment_url || null}, ${req.body.selfie_url || null}
       )
       RETURNING *
     `;
@@ -92,10 +90,6 @@ export async function registerStudent(req, res) {
       return res.status(409).json({ error: `The provided ${field} is already in use.` });
     }
 
-    if (err.code) { 
-        return res.status(500).json({ error: `Database error: ${err.message}` });
-    }
-    
     res.status(500).json({ error: 'An unexpected server error occurred.' });
   }
 }
@@ -153,80 +147,7 @@ export async function validateStudent(req, res) {
   }
 }
 
-export async function deductFare(req, res) {
-  try {
-    const { rfid: identifier, origin, destination } = req.body;
-
-    if (!identifier || !origin || !destination) {
-      return res.status(400).json({ error: 'Identifier, origin, and destination are required.' });
-    }
-    
-    if (origin === destination) {
-      return res.status(400).json({ error: 'Origin and destination cannot be the same.' });
-    }
-
-    const [user] = await sql`SELECT * FROM users WHERE rfid = ${identifier} OR student_id = ${identifier}`;
-    if (!user) {
-      return res.status(404).json({ error: 'User not found.' });
-    }
-
-    const standardFare = fareMatrix[origin]?.[destination];
-    if (typeof standardFare === 'undefined') {
-      return res.status(400).json({ error: 'Invalid origin or destination station.' });
-    }
-
-    let finalFare = standardFare;
-    let discountApplied = false;
-    
-    if (user.type === 'student') {
-        const [userStatus] = await sql`
-            SELECT CASE WHEN status = 'validated' AND card_expiry_date >= CURRENT_DATE AND annual_renewal_date >= CURRENT_DATE THEN 'Validated' ELSE 'Not Validated' END AS effective_status
-            FROM users WHERE rfid = ${user.rfid}
-        `;
-
-        if (userStatus && userStatus.effective_status === 'Validated') {
-            finalFare = standardFare * 0.5;
-            discountApplied = true;
-        }
-    }
-    
-    const currentBalance = parseFloat(user.balance);
-    if (currentBalance < finalFare) {
-      return res.status(400).json({ error: 'Insufficient balance.' });
-    }
-
-    const newBalance = currentBalance - finalFare;
-
-    await sql.begin(async sql => {
-      await sql`UPDATE users SET balance = ${newBalance}, updated_at = NOW() WHERE rfid = ${user.rfid}`;
-      // 👇 MODIFIED: Insert a 'journey' record into the 'taps' table instead of 'transactions'
-      await sql`
-        INSERT INTO taps (
-          rfid, tap_type, user_name, user_type, user_balance, 
-          origin_station, destination_station, fare_amount, discount_applied
-        ) VALUES (
-          ${user.rfid}, 'journey', ${user.name}, ${user.type}, ${newBalance},
-          ${origin}, ${destination}, ${finalFare}, ${discountApplied}
-        )
-      `;
-    });
-
-    res.status(200).json({
-      message: 'Fare deducted successfully.',
-      studentName: user.name,
-      standardFare,
-      finalFare,
-      discountApplied,
-      previousBalance: currentBalance,
-      newBalance,
-    });
-
-  } catch (err) {
-    console.error('Error deducting fare:', err);
-    res.status(500).json({ error: 'An error occurred during fare deduction.' });
-  }
-}
-
+// THIS FUNCTION IS NOW CORRECTED - All frontend React code has been removed.
 export async function addBalance(req, res) {
   const { rfid } = req.params;
   const { amount } = req.body;
@@ -246,24 +167,20 @@ export async function addBalance(req, res) {
     const currentBalance = parseFloat(user.balance);
     const newBalance = currentBalance + loadAmount;
 
-    // Use a transaction to ensure both operations succeed or fail together
     await sql.begin(async sql => {
-      // 1. Update the user's balance
       await sql`
         UPDATE users 
         SET balance = ${newBalance}, updated_at = NOW() 
         WHERE rfid = ${rfid}
       `;
       
-      // 2. Log this as a 'top_up' event in the taps table
-      // --- THIS QUERY IS NOW FIXED ---
       await sql`
         INSERT INTO taps (
           rfid, tap_type, user_name, user_type, user_balance, 
-          origin_station, destination_station, fare_amount, discount_applied
+          origin_station, fare_amount
         ) VALUES (
           ${user.rfid}, 'top_up', ${user.name}, ${user.type}, ${newBalance},
-          'Teller Load', NULL, ${loadAmount}, false
+          'Teller Load', ${loadAmount}
         )
       `;
     });
@@ -277,17 +194,4 @@ export async function addBalance(req, res) {
     console.error('Error adding balance:', err);
     res.status(500).json({ error: 'An error occurred while adding balance.' });
   }
-
-  try {
-      await addBalanceToStudent(studentData.rfid, amount);
-      
-      // THIS LINE SETS THE SUCCESS MESSAGE:
-      setAddBalanceMessage({ type: 'success', text: `Successfully added ₱${loadAmount.toFixed(2)}!` });
-      
-      // Refresh student data to show new balance
-      handleSearch(); 
-      setAmount(''); // Clear amount input
-    } catch (error) {
-      setAddBalanceMessage({ type: 'error', text: error.response?.data?.error || 'Failed to add balance.' });
-    }
 }
