@@ -63,6 +63,7 @@ export async function findStudent(req, res) {
   }
 }
 
+// MODIFIED: This function has been corrected to remove image URL handling
 export async function registerStudent(req, res) {
   try {
     const { rfid, name, type = 'student', student_id, email, program, school, address, contact_number } = req.body;
@@ -72,11 +73,11 @@ export async function registerStudent(req, res) {
     const [newStudent] = await sql`
       INSERT INTO users (
         rfid, name, balance, type, student_id, email, program, school,
-        address, contact_number, card_expiry_date, proof_of_enrollment_url, selfie_url
+        address, contact_number, card_expiry_date
       )
       VALUES (
         ${rfid}, ${name}, ${balance}, ${type}, ${student_id}, ${email}, ${program}, ${school},
-        ${address}, ${contact_number}, NOW() + INTERVAL '5 years', ${req.body.proof_of_enrollment_url || null}, ${req.body.selfie_url || null}
+        ${address}, ${contact_number}, NOW() + INTERVAL '5 years'
       )
       RETURNING *
     `;
@@ -147,7 +148,6 @@ export async function validateStudent(req, res) {
   }
 }
 
-// THIS FUNCTION IS NOW CORRECTED - All frontend React code has been removed.
 export async function addBalance(req, res) {
   const { rfid } = req.params;
   const { amount } = req.body;
@@ -195,3 +195,4 @@ export async function addBalance(req, res) {
     res.status(500).json({ error: 'An error occurred while adding balance.' });
   }
 }
+
