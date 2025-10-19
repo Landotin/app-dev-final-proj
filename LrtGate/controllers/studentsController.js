@@ -144,10 +144,3 @@ export async function validateStudent(req, res) {
   }
 }
 
-/*
- * The deductFare function is now deprecated.
- * Fare deduction is handled by the new `handleExitTap` function 
- * in `tapsController.js` to support the entry/exit gate logic.
- * This function is left here for reference but is no longer used.
- */
-// export async function deductFare(req, res) { ... }

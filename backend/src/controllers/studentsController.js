@@ -227,3 +227,67 @@ export async function deductFare(req, res) {
   }
 }
 
+export async function addBalance(req, res) {
+  const { rfid } = req.params;
+  const { amount } = req.body;
+
+  const loadAmount = parseFloat(amount);
+
+  if (!loadAmount || loadAmount <= 0) {
+    return res.status(400).json({ error: 'Please enter a valid positive amount.' });
+  }
+
+  try {
+    const [user] = await sql`SELECT * FROM users WHERE rfid = ${rfid}`;
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const currentBalance = parseFloat(user.balance);
+    const newBalance = currentBalance + loadAmount;
+
+    // Use a transaction to ensure both operations succeed or fail together
+    await sql.begin(async sql => {
+      // 1. Update the user's balance
+      await sql`
+        UPDATE users 
+        SET balance = ${newBalance}, updated_at = NOW() 
+        WHERE rfid = ${rfid}
+      `;
+      
+      // 2. Log this as a 'top_up' event in the taps table
+      // --- THIS QUERY IS NOW FIXED ---
+      await sql`
+        INSERT INTO taps (
+          rfid, tap_type, user_name, user_type, user_balance, 
+          origin_station, destination_station, fare_amount, discount_applied
+        ) VALUES (
+          ${user.rfid}, 'top_up', ${user.name}, ${user.type}, ${newBalance},
+          'Teller Load', NULL, ${loadAmount}, false
+        )
+      `;
+    });
+
+    res.status(200).json({ 
+      message: 'Balance added successfully.',
+      newBalance,
+    });
+
+  } catch (err) {
+    console.error('Error adding balance:', err);
+    res.status(500).json({ error: 'An error occurred while adding balance.' });
+  }
+
+  try {
+      await addBalanceToStudent(studentData.rfid, amount);
+      
+      // THIS LINE SETS THE SUCCESS MESSAGE:
+      setAddBalanceMessage({ type: 'success', text: `Successfully added ₱${loadAmount.toFixed(2)}!` });
+      
+      // Refresh student data to show new balance
+      handleSearch(); 
+      setAmount(''); // Clear amount input
+    } catch (error) {
+      setAddBalanceMessage({ type: 'error', text: error.response?.data?.error || 'Failed to add balance.' });
+    }
+}
