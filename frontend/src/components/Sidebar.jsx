@@ -7,7 +7,6 @@ const Sidebar = ({ currentView, setCurrentView }) => {
     { id: 'verification', label: 'Verification' },
     { id: 'studentList', label: 'List of Students' },
     { id: 'register', label: 'Register Student' },
-    { id: 'fareSimulator', label: 'Fare Simulator' },
     { id: 'addBalance', label: 'Add Balance' }, // 👈 ADD THIS LINE
   ];
 
