@@ -37,7 +37,7 @@ export async function initDB() {
       CREATE TABLE IF NOT EXISTS taps (
         id SERIAL PRIMARY KEY,
         rfid VARCHAR(255) NOT NULL REFERENCES users(rfid),
-        tap_type TEXT CHECK (tap_type IN ('entry','exit')) NOT NULL,
+        tap_type TEXT CHECK (tap_type IN ('entry','exit', 'journey', 'admin_correction', 'admin_penalty')) NOT NULL,
         tap_time TIMESTAMPTZ DEFAULT NOW() NOT NULL,
         user_name TEXT,
         user_balance NUMERIC,
