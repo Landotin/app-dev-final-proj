@@ -1,69 +1,65 @@
 import sql from '../config/db.js';
 
 /**
- * Handles the administrative action of resolving an incomplete journey.
- * This function exists only on the Admin Dashboard's backend.
+ * Resets a user's incomplete journey by applying a penalty.
+ * MODIFIED: This function NO LONGER deletes the entry record. It only applies the penalty.
  */
-export async function resolveMismatch(req, res) {
+export async function resetJourney(req, res) {
   try {
-    const { rfid, notes } = req.body;
-    const PENALTY_FARE = 30.00; // A fixed penalty fare for mismatches
+    const { rfid, penaltyAmount, notes } = req.body;
+    const penalty = parseFloat(penaltyAmount) || 0;
 
     if (!rfid) {
-      return res.status(400).json({ error: 'RFID is required to resolve a mismatch.' });
+      return res.status(400).json({ error: 'RFID is required.' });
+    }
+    if (penalty < 0 || penalty > 30) {
+      return res.status(400).json({ error: 'Penalty must be between ₱0 and ₱30.' });
     }
 
-    // 1. Find the user in the database
     const [user] = await sql`SELECT * FROM users WHERE rfid = ${rfid}`;
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }
 
-    // 2. Find the last action of the user to confirm it's an incomplete journey
-    const [lastTap] = await sql`
-      SELECT * FROM taps WHERE rfid = ${rfid} ORDER BY tap_time DESC LIMIT 1
-    `;
-
-    // 3. Check if the last action was indeed an 'entry' tap
+    const [lastTap] = await sql`SELECT * FROM taps WHERE rfid = ${rfid} ORDER BY tap_time DESC LIMIT 1`;
     if (!lastTap || lastTap.tap_type !== 'entry') {
-      return res.status(400).json({ error: 'No incomplete journey found to resolve for this user.' });
+      return res.status(400).json({ error: 'No incomplete journey found to reset.' });
     }
 
-    // 4. Check if the user has enough balance for the penalty
-    const currentBalance = parseFloat(user.balance);
-    if (currentBalance < PENALTY_FARE) {
-      return res.status(400).json({ error: `Insufficient balance to pay penalty fare of ₱${PENALTY_FARE.toFixed(2)}.` });
+    // Only apply a penalty if one is set. If the penalty is 0, do nothing except send a success message.
+    if (penalty > 0) {
+        await sql.begin(async sql => {
+            let newBalance = parseFloat(user.balance);
+
+            if (newBalance < penalty) {
+              // This will cancel the transaction
+              throw new Error(`Insufficient balance to pay penalty of ₱${penalty.toFixed(2)}.`);
+            }
+            newBalance -= penalty;
+
+            // Update the user's balance
+            await sql`UPDATE users SET balance = ${newBalance}, updated_at = NOW() WHERE rfid = ${rfid}`;
+
+            // Log the penalty as a separate transaction
+            await sql`
+              INSERT INTO taps (
+                rfid, tap_type, user_name, user_type, user_balance,
+                fare_amount, notes
+              ) VALUES (
+                ${rfid}, 'admin_penalty', ${user.name}, ${user.type}, ${newBalance},
+                ${penalty}, ${notes || 'Mismatch penalty applied by admin.'}
+              )
+            `;
+        });
     }
-    
-    const newBalance = currentBalance - PENALTY_FARE;
 
-    // 5. Use a transaction to safely update the database
-    await sql.begin(async sql => {
-      // First, update the user's balance
-      await sql`UPDATE users SET balance = ${newBalance}, updated_at = NOW() WHERE rfid = ${rfid}`;
-      
-      // Second, insert a new record to log this administrative action
-      await sql`
-        INSERT INTO taps (
-          rfid, tap_type, user_name, user_type, user_balance,
-          origin_station, destination_station, fare_amount, notes
-        ) VALUES (
-          ${rfid}, 'admin_correction', ${user.name}, ${user.type}, ${newBalance},
-          ${lastTap.origin_station}, 'Admin Resolved', ${PENALTY_FARE}, ${notes || 'Journey manually closed by admin.'}
-        )
-      `;
-    });
-
-    // 6. Send a success response
-    res.status(200).json({ 
-        message: 'Incomplete journey resolved successfully.',
-        newBalance,
-        penaltyApplied: PENALTY_FARE
-    });
+    // IMPORTANT: We no longer delete the entry record.
+    // The user is now free to tap out at the exit gate, and the entry record will be found correctly.
+    res.status(200).json({ message: 'Journey has been reset. The user can now tap out at the exit gate.' });
 
   } catch (err) {
-    console.error('Error resolving mismatch:', err);
-    res.status(500).json({ error: 'An error occurred while resolving the mismatch.' });
+    console.error('Error resetting journey:', err);
+    res.status(500).json({ error: err.message || 'An error occurred while resetting the journey.' });
   }
 }
 

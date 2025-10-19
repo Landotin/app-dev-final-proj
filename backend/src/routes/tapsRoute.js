@@ -1,11 +1,12 @@
 import express from "express";
-import { resolveMismatch } from "../controllers/tapsController.js";
+// MODIFIED: This should import the new resetJourney function from your controller
+import { resetJourney } from "../controllers/tapsController.js";
 
 const router = express.Router();
 
-// This route is specifically for the admin action of resolving a mismatch.
-// It listens for POST requests at the URL /api/taps/resolve-mismatch
-router.post("/resolve-mismatch", resolveMismatch);
+// MODIFIED: This is the single, correct route for the admin action of resetting a journey.
+// It listens for POST requests at the URL /api/taps/reset-journey
+router.post("/reset-journey", resetJourney);
 
 export default router;
 
