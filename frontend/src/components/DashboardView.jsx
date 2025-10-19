@@ -5,14 +5,14 @@ const DashboardView = () => {
   const [totalStudents, setTotalStudents] = useState(0);
   const [searchValue, setSearchValue] = useState('');
   const [searchResults, setSearchResults] = useState(null);
-
+  
   // State for filters
   const [filter, setFilter] = useState('all');
   const [selectedDate, setSelectedDate] = useState('');
 
-  // State for the new reset modal
+  // State for the resolution modal
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-  const [penaltyAmount, setPenaltyAmount] = useState(30); // Default to max penalty
+  const [penaltyAmount, setPenaltyAmount] = useState(30);
   const [resetNotes, setResetNotes] = useState('');
   const [resetMessage, setResetMessage] = useState('');
 
@@ -64,9 +64,10 @@ const DashboardView = () => {
       journey: 'bg-blue-100 text-blue-800',
       admin_correction: 'bg-orange-100 text-orange-800',
       admin_penalty: 'bg-yellow-100 text-yellow-800',
+      top_up: 'bg-purple-100 text-purple-800',
     };
     return (
-      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${colors[type]}`}>
+      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${colors[type] || 'bg-gray-100 text-gray-800'}`}>
         {type.replace('_', ' ').toUpperCase()}
       </span>
     );
@@ -79,8 +80,8 @@ const DashboardView = () => {
     return typeMatch && dateMatch;
   });
 
-  const lastTap = searchResults?.data?.taps?.[0];
-  const showResetButton = lastTap?.tap_type === 'entry';
+  const hasOpenJourney = searchResults?.data?.taps?.some(tap => tap.tap_type === 'entry');
+  const lastEntryTap = searchResults?.data?.taps?.find(tap => tap.tap_type === 'entry');
 
   const handleResetClick = () => {
     setIsResetModalOpen(true);
@@ -92,16 +93,16 @@ const DashboardView = () => {
   const handleConfirmReset = async () => {
     try {
       await resetUserJourney(searchResults.data.rfid, penaltyAmount, resetNotes);
-      setResetMessage({ type: 'success', text: 'Journey reset successfully!' });
+      setResetMessage({ type: 'success', text: 'Action completed successfully!' });
       setTimeout(() => {
         setIsResetModalOpen(false);
-        searchStudent();
+        searchStudent(); 
       }, 1500);
     } catch (error) {
-      setResetMessage({ type: 'error', text: error.response?.data?.error || 'Failed to reset journey.' });
+      setResetMessage({ type: 'error', text: error.response?.data?.error || 'Failed to complete action.' });
     }
   };
-
+  
   return (
     <div>
       <div className="bg-green-300 p-5 rounded-2xl mb-8 max-w-xs flex items-center gap-4 shadow-lg">
@@ -116,7 +117,7 @@ const DashboardView = () => {
         <div className="bg-green-300 p-8 rounded-3xl w-full max-w-4xl shadow-xl">
           <h2 className="text-2xl font-bold text-gray-800 mb-3">Tap History Checker</h2>
           <p className="text-gray-600 mb-5">Search for a student to view their recent tap history</p>
-
+          
           <div className="flex gap-3 mb-5">
             <input
               type="text"
@@ -138,8 +139,8 @@ const DashboardView = () => {
             <div className="bg-white p-5 rounded-xl">
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
                 <h3 className="text-xl font-bold text-gray-800">{searchResults.data.name}</h3>
-                {showResetButton && (
-                  <button
+                {hasOpenJourney && (
+                  <button 
                     onClick={handleResetClick}
                     className="px-4 py-2 bg-orange-500 text-white rounded-full font-bold hover:bg-orange-600 transition-colors animate-pulse text-sm"
                   >
@@ -171,7 +172,7 @@ const DashboardView = () => {
                         <th scope="col" className="px-6 py-3">Time</th>
                         <th scope="col" className="px-6 py-3">Type</th>
                         <th scope="col" className="px-6 py-3">Details</th>
-                        <th scope="col" className="px-6 py-3 text-right">Fare/Penalty</th>
+                        <th scope="col" className="px-6 py-3 text-right">Amount</th>
                         <th scope="col" className="px-6 py-3 text-right">New Balance</th>
                       </tr>
                     </thead>
@@ -183,11 +184,14 @@ const DashboardView = () => {
                           <td className="px-6 py-4"><TapTypeBadge type={tap.tap_type} /></td>
                           <td className="px-6 py-4 font-medium text-gray-900">
                             {tap.tap_type === 'entry' && `Entered at ${tap.origin_station}`}
-                            {(tap.tap_type === 'exit' || tap.tap_type === 'journey') && `${tap.origin_station} → ${tap.destination_station}`}
+                            {tap.tap_type === 'journey' && `${tap.origin_station} → ${tap.destination_station}`}
+                            {tap.tap_type === 'admin_correction' && `Resolved (from ${tap.origin_station})`}
                             {tap.tap_type === 'admin_penalty' && `Mismatch Penalty`}
+                            {tap.tap_type === 'top_up' && `Loaded at ${tap.origin_station}`}
                           </td>
-                          <td className="px-6 py-4 text-right">
-                            {tap.fare_amount ? `₱${parseFloat(tap.fare_amount).toFixed(2)}` : '—'}
+                          <td className="px-6 py-4 text-right font-medium">
+                            {tap.tap_type === 'top_up' && <span className="text-green-600">+₱{parseFloat(tap.fare_amount).toFixed(2)}</span>}
+                            {(tap.tap_type === 'journey' || tap.tap_type === 'admin_correction' || tap.tap_type === 'admin_penalty') && <span className="text-red-600">-₱{parseFloat(tap.fare_amount).toFixed(2)}</span>}
                             {tap.discount_applied && <div className="text-xs text-green-600">50% OFF</div>}
                           </td>
                           <td className="px-6 py-4 font-semibold text-right text-gray-800">
@@ -206,12 +210,12 @@ const DashboardView = () => {
         </div>
       </div>
 
-      {isResetModalOpen && (
+      {isResetModalOpen && lastEntryTap && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
           <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-xl">
             <h2 className="text-2xl font-bold mb-2">Reset Incomplete Journey</h2>
             <p className="text-gray-600 mb-4">
-              This will reset the journey from <strong className="text-gray-800">{lastTap.origin_station}</strong>. The user must then tap out to complete their trip.
+              This will resolve the journey started at <strong className="text-gray-800">{lastEntryTap.origin_station}</strong>.
             </p>
             
             <div>
@@ -231,7 +235,7 @@ const DashboardView = () => {
             <textarea
                 value={resetNotes}
                 onChange={(e) => setResetNotes(e.target.value)}
-                placeholder="Add optional notes (e.g., user forgot to tap out)..."
+                placeholder="Add optional notes (e.g., user forgot to tap out)"
                 className="w-full p-2 border rounded-md my-4"
             ></textarea>
 
@@ -241,9 +245,9 @@ const DashboardView = () => {
               </div>
             )}
 
-            <div className="flex justify-end gap-4 mt-4">
+            <div className="flex justify-end gap-4">
               <button onClick={() => setIsResetModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Cancel</button>
-              <button onClick={handleConfirmReset} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">Confirm & Reset Journey</button>
+              <button onClick={handleConfirmReset} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">Confirm & Reset</button>
             </div>
           </div>
         </div>
