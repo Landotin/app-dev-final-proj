@@ -17,6 +17,7 @@ app.use(express.json());
 app.use('/api/students', studentsRouter);
 app.use('/api/taps', tapsRouter);
 
+
 initDB().then(() => {
     app.listen(PORT, () => {
         console.log(`🚀 Server is listening on http://localhost:${PORT}`);

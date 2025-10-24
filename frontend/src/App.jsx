@@ -4,7 +4,7 @@ import DashboardView from './components/DashboardView';
 import RegisterView from './components/RegisterView';
 import StudentListView from './components/StudentListView';
 import VerificationView from './components/VerificationView';
-import FareSimulatorView from './components/FareSimulatorView'; 
+import AddBalanceView from './components/AddBalanceView'; // 👈 1. IMPORT THE NEW VIEW
 
 function App() {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -19,8 +19,8 @@ function App() {
         return <StudentListView />;
       case 'verification':
         return <VerificationView />;
-      case 'fareSimulator': // 👈 ADDED
-        return <FareSimulatorView />;
+      case 'addBalance': // 👈 2. ADD THIS CASE
+        return <AddBalanceView />;
       default:
         return <DashboardView />;
     }

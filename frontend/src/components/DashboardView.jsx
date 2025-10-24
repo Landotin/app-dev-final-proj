@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { findStudentByIdentifier, getAllStudents, resolveIncompleteJourney } from '../services/api';
+import { findStudentByIdentifier, getAllStudents, resetUserJourney } from '../services/api';
 
 const DashboardView = () => {
   const [totalStudents, setTotalStudents] = useState(0);
@@ -11,9 +11,10 @@ const DashboardView = () => {
   const [selectedDate, setSelectedDate] = useState('');
 
   // State for the resolution modal
-  const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
-  const [resolutionNotes, setResolutionNotes] = useState('');
-  const [resolutionMessage, setResolutionMessage] = useState('');
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [penaltyAmount, setPenaltyAmount] = useState(30);
+  const [resetNotes, setResetNotes] = useState('');
+  const [resetMessage, setResetMessage] = useState('');
 
   useEffect(() => {
     const loadStudentCount = async () => {
@@ -62,9 +63,11 @@ const DashboardView = () => {
       exit: 'bg-red-100 text-red-800',
       journey: 'bg-blue-100 text-blue-800',
       admin_correction: 'bg-orange-100 text-orange-800',
+      admin_penalty: 'bg-yellow-100 text-yellow-800',
+      top_up: 'bg-purple-100 text-purple-800',
     };
     return (
-      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${colors[type]}`}>
+      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${colors[type] || 'bg-gray-100 text-gray-800'}`}>
         {type.replace('_', ' ').toUpperCase()}
       </span>
     );
@@ -77,25 +80,26 @@ const DashboardView = () => {
     return typeMatch && dateMatch;
   });
 
-  const lastTap = searchResults?.data?.taps?.[0];
-  const showResolveButton = lastTap?.tap_type === 'entry';
+  const hasOpenJourney = searchResults?.data?.taps?.some(tap => tap.tap_type === 'entry');
+  const lastEntryTap = searchResults?.data?.taps?.find(tap => tap.tap_type === 'entry');
 
-  const handleResolveClick = () => {
-    setIsResolveModalOpen(true);
-    setResolutionMessage('');
-    setResolutionNotes('');
+  const handleResetClick = () => {
+    setIsResetModalOpen(true);
+    setResetMessage('');
+    setResetNotes('');
+    setPenaltyAmount(30);
   };
 
-  const handleConfirmResolution = async () => {
+  const handleConfirmReset = async () => {
     try {
-      await resolveIncompleteJourney(searchResults.data.rfid, resolutionNotes);
-      setResolutionMessage({ type: 'success', text: 'Mismatch resolved successfully!' });
+      await resetUserJourney(searchResults.data.rfid, penaltyAmount, resetNotes);
+      setResetMessage({ type: 'success', text: 'Action completed successfully!' });
       setTimeout(() => {
-        setIsResolveModalOpen(false);
+        setIsResetModalOpen(false);
         searchStudent(); 
       }, 1500);
     } catch (error) {
-      setResolutionMessage({ type: 'error', text: error.response?.data?.error || 'Failed to resolve.' });
+      setResetMessage({ type: 'error', text: error.response?.data?.error || 'Failed to complete action.' });
     }
   };
   
@@ -135,12 +139,12 @@ const DashboardView = () => {
             <div className="bg-white p-5 rounded-xl">
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
                 <h3 className="text-xl font-bold text-gray-800">{searchResults.data.name}</h3>
-                {showResolveButton && (
+                {hasOpenJourney && (
                   <button 
-                    onClick={handleResolveClick}
+                    onClick={handleResetClick}
                     className="px-4 py-2 bg-orange-500 text-white rounded-full font-bold hover:bg-orange-600 transition-colors animate-pulse text-sm"
                   >
-                    Resolve Incomplete Journey
+                    Reset Incomplete Journey
                   </button>
                 )}
               </div>
@@ -168,7 +172,7 @@ const DashboardView = () => {
                         <th scope="col" className="px-6 py-3">Time</th>
                         <th scope="col" className="px-6 py-3">Type</th>
                         <th scope="col" className="px-6 py-3">Details</th>
-                        <th scope="col" className="px-6 py-3 text-right">Fare</th>
+                        <th scope="col" className="px-6 py-3 text-right">Amount</th>
                         <th scope="col" className="px-6 py-3 text-right">New Balance</th>
                       </tr>
                     </thead>
@@ -180,11 +184,14 @@ const DashboardView = () => {
                           <td className="px-6 py-4"><TapTypeBadge type={tap.tap_type} /></td>
                           <td className="px-6 py-4 font-medium text-gray-900">
                             {tap.tap_type === 'entry' && `Entered at ${tap.origin_station}`}
-                            {(tap.tap_type === 'exit' || tap.tap_type === 'journey') && `${tap.origin_station} → ${tap.destination_station}`}
-                            {tap.tap_type === 'admin_correction' && `Manually Resolved (from ${tap.origin_station})`}
+                            {tap.tap_type === 'journey' && `${tap.origin_station} → ${tap.destination_station}`}
+                            {tap.tap_type === 'admin_correction' && `Resolved (from ${tap.origin_station})`}
+                            {tap.tap_type === 'admin_penalty' && `Mismatch Penalty`}
+                            {tap.tap_type === 'top_up' && `Loaded at ${tap.origin_station}`}
                           </td>
-                          <td className="px-6 py-4 text-right">
-                            {tap.fare_amount ? `₱${parseFloat(tap.fare_amount).toFixed(2)}` : '—'}
+                          <td className="px-6 py-4 text-right font-medium">
+                            {tap.tap_type === 'top_up' && <span className="text-green-600">+₱{parseFloat(tap.fare_amount).toFixed(2)}</span>}
+                            {(tap.tap_type === 'journey' || tap.tap_type === 'admin_correction' || tap.tap_type === 'admin_penalty') && <span className="text-red-600">-₱{parseFloat(tap.fare_amount).toFixed(2)}</span>}
                             {tap.discount_applied && <div className="text-xs text-green-600">50% OFF</div>}
                           </td>
                           <td className="px-6 py-4 font-semibold text-right text-gray-800">
@@ -203,29 +210,44 @@ const DashboardView = () => {
         </div>
       </div>
 
-      {isResolveModalOpen && (
+      {isResetModalOpen && lastEntryTap && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
           <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-xl">
-            <h2 className="text-2xl font-bold mb-2">Confirm Mismatch Resolution</h2>
+            <h2 className="text-2xl font-bold mb-2">Reset Incomplete Journey</h2>
             <p className="text-gray-600 mb-4">
-              This will close the journey from <strong className="text-gray-800">{lastTap.origin_station}</strong> and apply a <strong>₱30.00</strong> penalty fare.
+              This will resolve the journey started at <strong className="text-gray-800">{lastEntryTap.origin_station}</strong>.
             </p>
+            
+            <div>
+                <label className="block text-sm font-medium text-gray-700">Penalty Fare (₱0 - ₱30)</label>
+                <input
+                    type="number"
+                    value={penaltyAmount}
+                    onChange={(e) => setPenaltyAmount(e.target.value)}
+                    min="0"
+                    max="30"
+                    step="1"
+                    className="w-full p-2 border rounded-md mt-1"
+                />
+                 <p className="text-xs text-gray-500 mt-1">Set to 0 for system-related issues.</p>
+            </div>
+
             <textarea
-                value={resolutionNotes}
-                onChange={(e) => setResolutionNotes(e.target.value)}
-                placeholder="Add optional notes..."
-                className="w-full p-2 border rounded-md mb-4"
+                value={resetNotes}
+                onChange={(e) => setResetNotes(e.target.value)}
+                placeholder="Add optional notes (e.g., user forgot to tap out)"
+                className="w-full p-2 border rounded-md my-4"
             ></textarea>
 
-            {resolutionMessage && (
-              <div className={`p-3 mb-4 rounded-lg text-sm ${resolutionMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                {resolutionMessage.text}
+            {resetMessage && (
+              <div className={`p-3 mb-4 rounded-lg text-sm ${resetMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                {resetMessage.text}
               </div>
             )}
 
-            <div className="flex justify-end gap-4 mt-4">
-              <button onClick={() => setIsResolveModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Cancel</button>
-              <button onClick={handleConfirmResolution} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">Confirm & Resolve</button>
+            <div className="flex justify-end gap-4">
+              <button onClick={() => setIsResetModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Cancel</button>
+              <button onClick={handleConfirmReset} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">Confirm & Reset</button>
             </div>
           </div>
         </div>
@@ -235,3 +257,4 @@ const DashboardView = () => {
 };
 
 export default DashboardView;
+
